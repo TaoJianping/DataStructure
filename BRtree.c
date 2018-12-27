@@ -38,13 +38,13 @@ void insert_case1(BRNode *n);
 
 void insert_case2(BRNode *n);
 
-void balance_case3(BRNode *, BRNode *);
+void balance_case3(BRNode **, BRNode *);
 
-void balance_case4(BRNode *, BRNode *);
+void balance_case4(BRNode **, BRNode *);
 
-void balance_case5(BRNode *, BRNode *);
+void balance_case5(BRNode **, BRNode *);
 
-void re_balance_tree_node(BRNode *root, BRNode *node);
+void re_balance_tree_node(BRNode **, BRNode *);
 
 
 struct BRTreeNode *get_grandfather(BRNode *node) {
@@ -83,11 +83,11 @@ Bool is_root_node(BRNode *root, BRNode *node) {
 
 
 Bool is_left_child(BRNode *parent, BRNode *node) {
-    if (node == NULL || parent == NULL) {
+    if (node == NULL || parent == NULL || parent->left_child == NULL) {
         return False;
     }
 
-    if (node == parent->left_child) {
+    if (node->key == parent->left_child->key) {
         return True;
     }
 
@@ -153,8 +153,13 @@ Bool is_case_4(BRNode *root, BRNode *node) {
     BRNode *grand_father = get_grandfather(node);
     BRNode *uncle = get_uncle(node);
 
-    if (parent->color == Red && is_uncle_red(uncle) == False && is_right_child(parent, node) &&
-        is_left_child(parent, grand_father)) {
+    if (parent->color == Red && is_uncle_red(node) == False && is_right_child(parent, node) &&
+        is_left_child(grand_father, parent)) {
+        return True;
+    }
+
+    if (parent->color == Red && is_uncle_red(node) == False && is_left_child(parent, node) &&
+        is_right_child(grand_father, parent)) {
         return True;
     }
 
@@ -170,14 +175,25 @@ Bool is_case_5(BRNode *root, BRNode *node) {
         return False;
     }
 
-    if (parent->color == Red && is_uncle_red(node) == False && is_left_child(parent, node) &&
-        is_left_child(parent, grand_father)) {
+    if (parent->color == Red && is_uncle_red(node) == False && is_left_child(parent, node) == True &&
+        is_left_child(grand_father, parent) == True && node->color == Red) {
         return True;
-    } else if (parent->color == Red && is_uncle_red(node) == False && is_right_child(parent, node) &&
-            is_right_child(parent, grand_father)) {
+    } else if (parent->color == Red && is_uncle_red(node) == False && is_right_child(parent, node) == True &&
+               is_right_child(grand_father, parent) == True && node->color == Red) {
         return True;
     } else {
         return False;
+    }
+}
+
+
+int get_child_number(BRNode *node) {
+    if (node->left_child != NULL && node->right_child != NULL) {
+        return 2;
+    } else if (node->left_child == NULL && node->right_child == NULL) {
+        return 0;
+    } else {
+        return 1;
     }
 }
 
@@ -201,14 +217,21 @@ void left_rotate(BRNode *node) {
     BRNode *np = node->parent;
 
     node->right_child = rn->left_child;
+    if (rn->left_child != NULL) {
+        rn->left_child->parent = node;
+    }
+
     rn->left_child = node;
     node->parent = rn;
+    rn->parent = np;
     if (np != NULL) {
         if (node->key == np->left_child->key) {
             np->left_child = rn;
         } else {
             np->right_child = rn;
         }
+    } else {
+        rn->parent = NULL;
     }
 }
 
@@ -238,75 +261,91 @@ void right_rotate(BRNode *node) {
     BRNode *np = node->parent;
 
     node->left_child = ln->right_child;
+    if (ln->right_child != NULL) {
+        ln->right_child->parent = node;
+    }
+
     node->parent = ln;
     ln->right_child = node;
+    ln->parent = np;
 
     if (np != NULL) {
-        if (node->key == np->left_child->key) {
+        if (is_left_child(np, node)) {
             np->left_child = ln;
         } else {
             np->right_child = ln;
         }
+    } else {
+        ln->parent = NULL;
     }
 }
 
 
-void balance_case5(BRNode *root, BRNode *node) {
+void balance_case5(BRNode **root, BRNode *node) {
     BRNode *parent = node->parent;
     BRNode *grand_father = get_grandfather(node);
 
     parent->color = Black;
     grand_father->color = Red;
 
-    if (is_left_child(parent, node)) {
+    if (is_left_child(grand_father, parent)) {
         right_rotate(grand_father);
     } else {
         left_rotate(grand_father);
     }
-
-    root = parent;
+    if ((*root)->key == grand_father->key) {
+        *root = parent;
+    }
 }
 
 
-void balance_case4(BRNode *root, BRNode *node) {
-    left_rotate(node->parent);
-    balance_case5(root, node);
+void balance_case4(BRNode **root, BRNode *node) {
+    if (is_left_child(node->parent, node)) {
+        right_rotate(node->parent);
+    } else {
+        left_rotate(node->parent);
+    }
+    if (node->left_child != NULL) {
+        balance_case5(root, node->left_child);
+    } else {
+        balance_case5(root, node->right_child);
+    }
 }
 
 
-void balance_case3(BRNode *root, BRNode *node) {
+void balance_case3(BRNode **root, BRNode *node) {
     BRNode *uncle = get_uncle(node);
     BRNode *grand_father = get_grandfather(node);
 
     node->parent->color = Black;
     uncle->color = Black;
-    if (grand_father->key != root->key) {
+    if (grand_father->key != (*root)->key) {
         grand_father->color = Red;
-        balance_case3(root, grand_father);
+        re_balance_tree_node(root, grand_father);
     }
 
 }
 
 
-void re_balance_tree_node(BRNode *root, BRNode *node) {
+void re_balance_tree_node(BRNode **root, BRNode *node) {
 
-    if (is_case_1(root, node)) {
+    if (is_case_1(*root, node)) {
         return;
     }
 
-    if (is_case_2(root, node)) {
+    if (is_case_2(*root, node)) {
         return;
     }
 
-    if (is_case_3(root, node)) {
+    if (is_case_3(*root, node)) {
         balance_case3(root, node);
     }
 
-    if (is_case_4(root, node)) {
+    if (is_case_4(*root, node)) {
         balance_case4(root, node);
     }
 
-    if (is_case_5(root, node)) {
+    if (is_case_5(*root, node)) {
         balance_case5(root, node);
     }
 }
@@ -327,26 +366,16 @@ struct BRTreeNode *create_br_tree_node(int key) {
 
 
 struct BRTree *create_br_tree() {
-    struct BRTreeNode *node;
-    node = (struct BRTreeNode *) malloc(sizeof(struct BRTreeNode));
 
     struct BRTree *tree;
     tree = (struct BRTree *) malloc(sizeof(struct BRTree));
 
-    node->color = Black;
-    node->right_child = NULL;
-    node->left_child = NULL;
-    node->parent = NULL;
-
-    tree->root = node;
+    tree->root = NULL;
     return tree;
 }
 
 
 void insert_br_tree_node(BRNode *root, BRNode *node) {
-    if (root->parent == NULL) {
-        root = node;
-    }
 
     if (root->key > node->key) {
         if (root->left_child == NULL) {
@@ -355,36 +384,96 @@ void insert_br_tree_node(BRNode *root, BRNode *node) {
         } else {
             insert_br_tree_node(root->left_child, node);
         }
-    } else {
+    } else if (root->key < node->key) {
         if (root->right_child == NULL) {
             root->right_child = node;
             node->parent = root;
         } else {
             insert_br_tree_node(root->right_child, node);
         }
+    } else {
+        return;
     }
 }
 
 
-void insert_br_tree(struct BRTree *tree, BRNode *node) {
-    BRNode *root = tree->root;
-    insert_br_tree_node(root, node);
-    re_balance_tree_node(root, node);
+void free_br_tree_node(BRNode *node) {
+    int child_number = get_child_number(node);
+    BRNode *parent = node->parent;
+
+    if (child_number == 0) {
+        if (parent == NULL) {
+            free(node);
+        } else {
+            if (is_right_child(parent, node)) {
+                parent->right_child = NULL;
+            } else {
+                parent->left_child = NULL;
+            }
+            free(node);
+        }
+    } else if (child_number == 1) {
+        BRNode *child;
+        if (node->right_child == NULL) {
+            child = node->left_child;
+        } else {
+            child = node->right_child;
+        }
+        if (is_right_child(parent, node)) {
+            parent->right_child = child;
+        } else {
+            parent->left_child = child;
+        }
+        free(node);
+    }
+}
+
+
+void delete_br_tree_node(BRNode *node, int key) {
+    if (node->key > key) {
+        if (node->left_child == NULL) {
+            return;
+        } else {
+            delete_br_tree_node(node->left_child, key);
+        }
+    } else if (node->key < key) {
+        if (node->right_child == NULL) {
+            return;
+        } else {
+            delete_br_tree_node(node->right_child, key);
+        }
+    } else {
+        free_br_tree_node(node);
+    }
+}
+
+
+void insert_br_tree(struct BRTree *tree, int key) {
+    struct BRTreeNode *node = create_br_tree_node(key);
+    if (tree->root == NULL) {
+        tree->root = node;
+        return;
+    }
+    insert_br_tree_node(tree->root, node);
+    re_balance_tree_node(&tree->root, node);
+}
+
+
+void delete_br_tree(struct BRTree *tree, int key) {
+    delete_br_tree_node(tree->root, key);
 }
 
 
 int test_br_tree() {
 
     struct BRTree *tree = create_br_tree();
+//    int test_Data[20] = {12, 1, 9, 2, 0, 11, 7, 19, 4, 15, 18, 5, 14, 13, 10, 16, 6, 3, 8, 17};
 
-    struct BRTreeNode *node1 = create_br_tree_node(2);
-    struct BRTreeNode *node2 = create_br_tree_node(3);
+    for (int i=0; i < 1000000 ; ++i) {
+        insert_br_tree(tree, i);
+    }
 
-    insert_br_tree(tree, node1);
-    insert_br_tree(tree, node2);
-
-    printf("%d \n", tree->root->right_child->key);
-    printf("%d", tree->root->right_child->right_child->key);
+    printf("%d \n", tree->root->color);
 
     return 0;
 }
